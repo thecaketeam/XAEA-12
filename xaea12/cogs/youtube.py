@@ -4,8 +4,6 @@ import discord
 from discord.ext import commands
 import youtube_dl
 
-from ..core.cog import Cog
-
 youtube_dl.utils.bug_reports_message = lambda: ''
 
 ytdl_format_options = {
@@ -49,10 +47,15 @@ class YouTubeSource(discord.PCMVolumeTransformer):
         return cls(discord.FFmpegPCMAudio(filename, **ffmpeg_options), data=data)
 
 
-class YouTube(Cog):
+class YouTube(commands.Cog):
+    """YouTube commands"""
+
+    def __init__(self, bot):
+        self.bot = bot
+
     @commands.command()
     async def join(self, ctx: commands.Context, channel: discord.VoiceChannel):
-        """Command to add bot to your voice channel"""
+        """Add bot to your voice channel"""
 
         if ctx.voice_client is not None:
             return await ctx.voice_client.move_to(channel)
@@ -61,7 +64,7 @@ class YouTube(Cog):
 
     @commands.command()
     async def play(self, ctx: commands.Context, url):
-        """Command to play youtube video or music"""
+        """Play youtube video or music"""
 
         async with ctx.typing():
             player = await YouTubeSource.from_url(url, loop=self.bot.loop, stream=True)
@@ -71,7 +74,7 @@ class YouTube(Cog):
 
     @commands.command()
     async def volume(self, ctx: commands.Context, volume: int):
-        """Command to change user's volume"""
+        """Change volume"""
 
         if ctx.voice_client is None:
             return await ctx.send("Not connected to a voice channel")
@@ -81,7 +84,7 @@ class YouTube(Cog):
 
     @commands.command()
     async def disconnect(self, ctx: commands.Context):
-        """Command to remove bot from discord voice channel"""
+        """Remove bot from discord voice channel"""
 
         await ctx.voice_client.disconnect()
 

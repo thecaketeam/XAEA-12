@@ -1,45 +1,44 @@
+import discord
 from discord.ext import commands
-from ..core.checks import owner_permissions
-from ..core.cog import Cog
 
-class Admin(Cog):
-    @commands.command(usage='<module>')
-    @owner_permissions()
-    async def load(self, ctx: commands.Context, name=None):
-        """Command to load new modules"""
+class Admin(commands.Cog):
+    """Admin-only commands"""
 
-        if name is not None:
-            self.bot.loader.load_module(name)
+    def __init__(self, bot):
+        self.bot = bot
+
+    @commands.command()
+    async def load(self, ctx: commands.Context, *, module: str):
+        """Load a module"""
+
+        try:
+            self.bot.load_extension(f'xaea12.cogs.{module}')
+        except commands.ExtensionError as e:
+            await ctx.send(f'{e}')
         else:
-            print("Invalid module name")
+            await ctx.send('Ok!')
 
-    @commands.command(usage='<module>')
-    @owner_permissions()
-    async def unload(self, ctx: commands.Context, name=None):
-        """Command to unload modules"""
+    @commands.command()
+    async def unload(self, ctx: commands.Context, *, module: str):
+        """Unload a module"""
 
-        if name is not None:
-            self.bot.loader.unload_module(name)
+        try:
+            self.bot.unload_extension(f'xaea12.cogs.{module}')
+        except commands.ExtensionError as e:
+            await ctx.send(f'{e}')
         else:
-            print("Invalid module name")
+            await ctx.send('Ok!')
 
-    @commands.command(usage='<module>')
-    @owner_permissions()
-    async def reload(self, ctx: commands.Context, name=None):
-        """Command to reload modules"""
+    @commands.command()
+    async def reload(self, ctx: commands.Context, *, module: str):
+        """Reload a module"""
 
-        if name is not None:
-            self.bot.loader.reload_module(name)
+        try:
+            self.bot.reload_extension(f'xaea12.cogs.{module}')
+        except commands.ExtensionError as e:
+            await ctx.send(f'{e}')
         else:
-            print("Invalid module name")
-
-    @commands.command(usage='<command prefix>')
-    @owner_permissions()
-    async def set_prefix(self, ctx: commands.Context, prefix=None):
-        """Command to change commands prefix"""
-
-        if prefix is not None:
-            self.bot.command_prefix = prefix
+            await ctx.send('Ok!')
 
 def setup(bot: commands.Bot):
     bot.add_cog(Admin(bot))

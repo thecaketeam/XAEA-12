@@ -5,66 +5,72 @@ import random
 import discord
 from discord.ext import commands
 
-from .core.loader import Loader
-from .core.checks import owner_permissions
+from .config import Config
 
-class XAEA12Bot(commands.Bot):
-    def __init__(self, *args, **kwargs):
+class XAEA12(commands.Bot):
+    def __init__(self, name="config.json"):
         intents = discord.Intents.all()
 
-        super().__init__(*args, **kwargs, intents=intents)
+        self.config = Config(name)
+        self.prefix = self.config.get('prefix', 'x!')
+        self.shard_count = self.config.get('shard_count', 2)
 
-        self.command_prefix = kwargs.get('command_prefix', 'x!')
-        self.activities = ['TECHNOBLADE NEVER DIES!', 'Technoblade vs Dream', 'Technoblade\'s bed wars streams']
-        self.loader = Loader(self)
-        path = os.path.join('xaea12', 'cogs')
-        self.modules = Loader.get_modules(path)
+        super().__init__(command_prefix=self.prefix, case_insensitive=True,
+                         heartbeat_timeout=150.0, shard_count=self.shard_count,
+                         fetch_offline_members=False, intents=intents)
 
-    @staticmethod
-    @commands.command(name='restart')
-    @owner_permissions()
-    async def restart(ctx):
-        """Command to restart bot."""
-        await ctx.send('Restarting...')
-        os.execl(sys.executable, sys.executable, *sys.argv)
+        self.greeting_message = self.config.get('greeting_message', 'Welcome {member}!')
+        self.leave_message = self.config.get('leave_message', '{member} has gone.')
+
+        cog_path = os.path.join(os.path.dirname(__file__), 'cogs')
+        self.cog_path = self.config.get('cog_path', cog_path)
+
+        self.activities = [
+            discord.Activity(type=discord.ActivityType.watching, name='Technoblade vs Dream'),
+            discord.Activity(type=discord.ActivityType.watching, name='Technoblade\'s Bed Wars streams'),
+        ]
 
     async def on_ready(self):
-        for attr in self.__dir__():
-            attr = getattr(self, attr)
-            if callable(attr) and isinstance(attr, commands.Command):
-                self.add_command(attr)
+        print(f'Logged in as {self.user.display_name} (ID: {self.user.id})')
 
-        for filename in self.modules:
-            self.loader.load_module(filename)
-
-        activity = discord.Activity(type=discord.ActivityType.watching, name=random.choice(self.activities))
+        activity = random.choice(self.activities)
         await self.change_presence(status=discord.Status.online, activity=activity)
 
-        print('Logged in as')
-        print('login: {}'.format(self.user.name))
-        print('id: {}'.format(self.user.id))
-        print('prefix: {}'.format(self.command_prefix))
-        print('Connected.')
+        self.add_command(XAEA12._restart)
+        for filename in os.listdir(self.cog_path):
+            base, ext = os.path.splitext(filename)
+            if ext == '.py':
+                cog = 'xaea12.cogs.{}'.format(base)
+                self.load_extension(cog)
 
-    async def on_message(self, message: discord.Message):
-        if message.author.bot:
-            return
-
-        ctx = await self.get_context(message)
-        if message.content.startswith(self.command_prefix):
-            await self.invoke(ctx)
+    async def on_command_error(self, ctx: commands.Context, exception: Exception):
+        await ctx.send(exception)
 
     async def on_member_join(self, member: discord.Member):
         if member.guild.system_channel is not None:
-            await member.guild.system_channel.send('Welcome {0.mention}!'.format(member))
+            message = self.greeting_message.format(member=member.mention)
+            await member.guild.system_channel.send(message)
 
     async def on_member_remove(self, member: discord.Member):
         if member.guild.system_channel is not None:
-            await member.guild.system_channel.send('{0.name} has gone.'.format(member))
+            message = self.leave_message.format(member=member.mention)
+            await member.guild.system_channel.send(message)
 
-    async def on_command_error(self, ctx: commands.Context, error):
-        await ctx.send(error)
+    def run(self, *args, **kwargs):
+        try:
+            self.loop.run_until_complete(self.start(self.config.get('token', os.getenv('DISCORD_TOKEN')), *args, **kwargs))
+        except KeyboardInterrupt:
+            self.loop.run_until_complete(self.close())
+        except (AttributeError, discord.errors.LoginFailure):
+            print("Invalid token!")
+        finally:
+            self.loop.close()
 
-    def run(self, *args):
-        self.loop.run_until_complete(self.start(*args))
-        self.loop.close()
+    @staticmethod
+    @commands.command(name='restart')
+    @commands.has_permissions(administrator=True)
+    async def _restart(ctx: commands.Context):
+        """Restart bot"""
+
+        await ctx.send('Restarting...')
+        os.execl(sys.executable, sys.executable, *sys.argv)
